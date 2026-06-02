@@ -21,13 +21,32 @@ def save_booking_data(data):
 # ৩. পেজ সেটআপ ও অ্যাডভান্সড সিএসএস
 st.set_page_config(page_title="Abida Tourist", layout="centered", page_icon="🚌")
 
-# প্রিমিয়াম থিম এবং লাইভ কালার আপডেট সিএসএস
+# প্রিমিয়াম থিম এবং লাইভ কালার আপডেট সিএসএস (মোবাইল ফোর্সড কলাম ফিক্স সহ)
 st.markdown("""
     <style>
     .main { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); }
-    .block-container { padding: 1.5rem 0.8rem !important; max-width: 480px !important; }
-    .main-title { text-align: center; color: #1e3c72; font-weight: 800; margin-bottom: 2px; }
-    .sub-title { text-align: center; color: #555; font-size: 14px; margin-bottom: 15px; }
+    .block-container { padding: 1rem 0.5rem !important; max-width: 480px !important; }
+    .main-title { text-align: center; color: #1e3c72; font-weight: 800; margin-bottom: 2px; font-size: 24px !important; }
+    .sub-title { text-align: center; color: #555; font-size: 13px; margin-bottom: 15px; }
+
+    /* মোবাইলেও যেন ৪টি কলাম পাশাপাশি বাধ্য হয়ে থাকে */
+    [data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        gap: 5px !important;
+    }
+    [data-testid="stHorizontalBlock"] > div {
+        flex: 1 1 0% !important;
+        min-width: 0 !important;
+    }
+
+    /* সিট বাটন সাইজ এবং প্যাডিং মোবাইলের জন্য অপ্টিমাইজড */
+    div.stButton > button {
+        padding: 6px 2px !important;
+        font-size: 12px !important;
+        height: 38px !important;
+    }
 
     /* খালি সিট - তাৎক্ষণিক সবুজ */
     div.stButton > button[key^="avail_"] {
@@ -43,7 +62,7 @@ st.markdown("""
         color: #1565c0 !important;
         border: 2px solid #2196f3 !important;
         font-weight: bold !important;
-        box-shadow: 0 0 12px rgba(33, 150, 243, 0.6) !important;
+        box-shadow: 0 0 8px rgba(33, 150, 243, 0.6) !important;
     }
     
     /* বুকড সিট - সঙ্গে সঙ্গে লাল এবং লকড */
@@ -65,13 +84,13 @@ st.markdown("""
     
     .stTabs [data-baseweb="tab-list"] { gap: 10px; justify-content: center; }
     .stTabs [aria-selected="true"] { background-color: #1e3c72 !important; color: white !important; }
-    div[data-testid="stForm"] { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+    div[data-testid="stForm"] { background: white; padding: 15px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
     .stFormSubmitButton > button { background: linear-gradient(to right, #1e3c72, #2a5298) !important; color: white !important; border-radius: 10px !important; height: 45px !important;}
     </style>
 """, unsafe_allow_html=True)
 
 st.markdown("<h1 class='main-title'>🚌 আবিদা ট্যুরিস্ট এসি বাস</h1>", unsafe_allow_html=True)
-st.markdown("<p class='sub-title'>📞 হটলাইন নম্বর: 01717840502/01923840502|আবিদা টুরিস্ট এসি বাস</p>", unsafe_allow_html=True)
+st.markdown("<p class='sub-title'>📞 হটলাইন নম্বর: 01717840502 / 01923840502<br>আবিদা টুরিস্ট এসি বাস</p>", unsafe_allow_html=True)
 
 # ৪. বাসের অফিশিয়াল সিট লিস্ট
 seat_list = [
@@ -90,7 +109,7 @@ if 'selected_seat' not in st.session_state:
 if 'admin_logged_in' not in st.session_state:
     st.session_state.admin_logged_in = False
 
-# --- এখানে format="DD-MM-YYYY" যুক্ত করা হয়েছে যাতে স্ক্রিনে দিন/মাস/বছর দেখায় ---
+# তারিখ নির্ধারণ
 selected_date = st.date_input(
     "📅 ভ্রমণের তারিখ নির্ধারণ করুন:", 
     value=today_dt, 
@@ -115,7 +134,7 @@ tab1, tab2 = st.tabs(["💺 সিট ম্যাপ ভিউ", "📝 বু�
 
 # --- 💺 ট্যাব ১: ক্লিক-ইন্টারেক্টিভ সিট ম্যাপ ---
 with tab1:
-    st.markdown("<p style='text-align:center; color:#777; font-size:12px;'>খালি সিট সবুজ 🟢, আপনার সিলেক্ট করা সিট নীল 🔵 এবং বুকড সিট তাৎক্ষণিক লাল 🔴 দেখাবে।</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center; color:#777; font-size:11px; margin-bottom:10px;'>খালি সিট সবুজ 🟢, সিলেক্টেড নীল 🔵 এবং বুকড লাল 🔴 দেখাবে।</p>", unsafe_allow_html=True)
     
     # সিট রেন্ডার করার ফাংশন
     def render_seat_clickable(seat_id, display_label):
@@ -128,37 +147,37 @@ with tab1:
         else:
             if st.button(f"🟢 {display_label}", key=f"avail_{seat_id}", use_container_width=True):
                 st.session_state.selected_seat = seat_id
-                st.success(f"🎯 সিট {display_label} সিলেক্ট করা হয়েছে! পাশের 'বুকিং ফরম' ট্যাবে যান।")
-                time.sleep(0.4)
+                st.success(f"🎯 সিট {display_label} সিলেক্টেড!")
+                time.sleep(0.3)
                 st.rerun()
 
-    # সিট লেআউট জেনারেশন
-    c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
+    # সিট লেআউট জেনারেশন (মোবাইলে পাশাপাশি রাখার জন্য gap="small" ব্যবহার করা হয়েছে)
+    c1, c2, c3, c4 = st.columns([1, 1, 1, 1], gap="small")
     with c1: render_seat_clickable("A-1", "A-1")
     with c2: render_seat_clickable("B (Row A)", "B")
     with c3: st.write("") 
     with c4: st.button("👨‍✈️ DR", key="DR_m", disabled=True, use_container_width=True)
 
-    c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
+    c1, c2, c3, c4 = st.columns([1, 1, 1, 1], gap="small")
     with c1: render_seat_clickable("B1", "B1")
     with c2: st.write("") 
     with c3: render_seat_clickable("B2", "B2")
     with c4: render_seat_clickable("B3", "B3")
 
-    c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
+    c1, c2, c3, c4 = st.columns([1, 1, 1, 1], gap="small")
     with c1: st.button("🚪 GAT", key="GAT_m", disabled=True, use_container_width=True)
     with c2: render_seat_clickable("B (Row C)", "B")
     with c3: render_seat_clickable("C1", "C1")
     with c4: render_seat_clickable("C2", "C2")
 
     for r in ["D", "E", "F", "G"]:
-        c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
+        c1, c2, c3, c4 = st.columns([1, 1, 1, 1], gap="small")
         with c1: render_seat_clickable(f"{r}1", f"{r}1")
         with c2: render_seat_clickable(f"B (Row {r})", "B")
         with c3: render_seat_clickable(f"{r}2", f"{r}2")
         with c4: render_seat_clickable(f"{r}3", f"{r}3")
 
-    c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
+    c1, c2, c3, c4 = st.columns([1, 1, 1, 1], gap="small")
     with c1: render_seat_clickable("H1", "H1")
     with c2: render_seat_clickable("H2", "H2")
     with c3: render_seat_clickable("H3", "H3")
@@ -223,7 +242,7 @@ with st.expander("🔐 অ্যাডমিন পোর্টাল"):
             if st.button("⚠️ সকল বুকিং মুছুন ও নতুন ট্রিপ শুরু করুন", type="primary", use_container_width=True):
                 try:
                     os.remove(RECORD_FILE)
-                    st.success("🔥 সকল বুকিং ডাটা সফলভাবে মুছে ফেলা হয়েছে! নতুন ট্রিপের জন্য সিটগুলো এখন খালি।")
+                    st.success("🔥 সকল বুকিং ডাটা সফলভাবে মুছে ফেলা হয়েছে!")
                     time.sleep(1)
                     st.rerun()
                 except Exception as e:
