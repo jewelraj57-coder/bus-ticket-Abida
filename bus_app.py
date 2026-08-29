@@ -10,18 +10,29 @@ RECORD_FILE = "daily_customer_list.csv"
 ADMIN_PASSWORD = "sohel502" 
 GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/11LAiSvWu3I_bKRGUg26uBIuGlob4cdRB6SOs7no3QiM/edit?gid=0#gid=0"
 
-# বাসের তালিকা
 BUS_LIST = ["আবিদা ট্যুরিস্ট - বাস ১", "আবিদা ট্যুরিস্ট - বাস ২"]
 
-# ২. ডাটা সেভ করার ফাংশন
-def save_booking_data(data):
-    df = pd.DataFrame([data])
+# ২. সময় নিয়ন্ত্রণ (বাংলাদেশ টাইম জোন - BD Time)
+local_tz = pytz.timezone('Asia/Dhaka')
+
+def get_bd_time():
+    """বাংলাদেশের বর্তমান সময় ও তারিখ পাওয়ার ফাংশন"""
+    return datetime.now(local_tz)
+
+today_dt = get_bd_time().date()
+
+# ৩. ডাটা সেভ ও আপডেট করার ফাংশন
+def save_booking_data(data_list):
+    df = pd.DataFrame(data_list)
     if not os.path.isfile(RECORD_FILE):
         df.to_csv(RECORD_FILE, index=False, encoding='utf-8-sig')
     else:
         df.to_csv(RECORD_FILE, mode='a', index=False, header=False, encoding='utf-8-sig')
 
-# ৩. পেজ সেটআপ ও অ্যাডভান্সড সিএসএস
+def overwrite_all_data(df):
+    df.to_csv(RECORD_FILE, index=False, encoding='utf-8-sig')
+
+# ৪. পেজ সেটআপ ও অ্যাডভান্সড সিএসএস
 st.set_page_config(page_title="Abida Tourist", layout="centered", page_icon="🚌")
 
 st.markdown("""
@@ -87,20 +98,16 @@ st.markdown("""
 st.markdown("<h1 class='main-title'>🚌 আবিদা ট্যুরিস্ট এসি বাস</h1>", unsafe_allow_html=True)
 st.markdown("<p class='sub-title'>📞 হটলাইন নম্বর: 01717840502 / 01923840502</p>", unsafe_allow_html=True)
 
-# ৪. ৪০টি সিটের তালিকা তৈরি (A1-J4)
+# ৫. ৪০টি সিটের তালিকা তৈরি
 rows = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
 seat_list = [f"{r}{num}" for r in rows for num in range(1, 5)]
 
-# ৫. টাইমজোন ও সেশন স্টেট সেটআপ
-local_tz = pytz.timezone('Asia/Dhaka')
-today_dt = datetime.now(local_tz).date()
-
-if 'selected_seat' not in st.session_state:
-    st.session_state.selected_seat = None
+# সেশন স্টেট সেটআপ
+if 'selected_seats' not in st.session_state:
+    st.session_state.selected_seats = []
 if 'admin_logged_in' not in st.session_state:
     st.session_state.admin_logged_in = False
 
-# বাস এবং ভ্রমণের তারিখ নির্বাচন
 col_bus, col_date = st.columns(2)
 with col_bus:
     selected_bus = st.selectbox("🚌 বাস নির্বাচন করুন:", BUS_LIST)
@@ -115,19 +122,27 @@ with col_date:
 
 formatted_journey_date = selected_date.strftime("%d-%m-%Y")
 
-# নির্দিষ্ট বাস ও তারিখের বুকড ডাটা লোড করা (এরর হ্যান্ডলিং সহ)
+# বুকড সিট ফিল্টার (সুরক্ষিত ও স্ট্রিপড ডাটা)
 booked_seats_for_date = []
 if os.path.isfile(RECORD_FILE):
     try:
-        df_existing = pd.read_csv(RECORD_FILE, on_bad_lines='skip')
+        df_existing = pd.read_csv(RECORD_FILE, dtype=str, on_bad_lines='skip')
         if 'ভ্রমণের তারিখ' in df_existing.columns and 'বাসের নাম' in df_existing.columns:
+            df_existing['ভ্রমণের তারিখ'] = df_existing['ভ্রমণের তারিখ'].str.strip()
+            df_existing['বাসের নাম'] = df_existing['বাসের নাম'].str.strip()
+            
             df_filtered = df_existing[
                 (df_existing['ভ্রমণের তারিখ'] == formatted_journey_date) & 
                 (df_existing['বাসের নাম'] == selected_bus)
             ]
-            booked_seats_for_date = df_filtered['সিট নম্বর'].tolist()
+            booked_seats_for_date = [s.strip() for s in df_filtered['সিট নম্বর'].dropna().tolist()]
     except Exception:
-        pass
+        booked_seats_for_date = []
+
+# নিশ্চিত করা যেন কোনো বুকড সিট selected_seats সেশন স্টেটে আটকে না থাকে
+st.session_state.selected_seats = [
+    s for s in st.session_state.selected_seats if s not in booked_seats_for_date
+]
 
 tab1, tab2 = st.tabs(["💺 ৪০-সিট ম্যাপ ভিউ", "📝 বুকিং ফরম"])
 
@@ -139,18 +154,15 @@ with tab1:
     def render_seat_clickable(seat_id):
         if seat_id in booked_seats_for_date:
             st.button(f"🔴 {seat_id}", key=f"booked_{seat_id}", disabled=True, use_container_width=True)
-        elif st.session_state.selected_seat == seat_id:
+        elif seat_id in st.session_state.selected_seats:
             if st.button(f"🔵 {seat_id}", key=f"sel_{seat_id}", use_container_width=True):
-                st.session_state.selected_seat = None
+                st.session_state.selected_seats.remove(seat_id)
                 st.rerun()
         else:
             if st.button(f"🟢 {seat_id}", key=f"avail_{seat_id}", use_container_width=True):
-                st.session_state.selected_seat = seat_id
-                st.success(f"🎯 সিট {seat_id} সিলেক্টেড!")
-                time.sleep(0.3)
+                st.session_state.selected_seats.append(seat_id)
                 st.rerun()
 
-    # ড্রাইভার ও ক্যাবিনের সামনের অংশ
     c1, c2, c3, c4 = st.columns([1, 1, 1, 1], gap="small")
     with c1: st.button("🚪 GATE", key="GAT_m", disabled=True, use_container_width=True)
     with c2: st.write("")
@@ -159,7 +171,6 @@ with tab1:
     
     st.markdown("<hr style='margin:5px 0;'>", unsafe_allow_html=True)
 
-    # ৪০টি সিটের গ্রিড জেনারেশন (A1-J4)
     for r in rows:
         c1, c2, c3, c4 = st.columns([1, 1, 1, 1], gap="small")
         with c1: render_seat_clickable(f"{r}1")
@@ -167,49 +178,63 @@ with tab1:
         with c3: render_seat_clickable(f"{r}3")
         with c4: render_seat_clickable(f"{r}4")
 
-# --- 📝 ট্যাব ২: বুকিং ফরম ---
+    if st.session_state.selected_seats:
+        st.info(f"🎯 আপনার পছন্দকৃত সিট: **{', '.join(st.session_state.selected_seats)}**")
+
+# --- 📝 ট্যাব ২: মূল বুকিং ফরম (মাল্টি-সিলেক্ট ড্রপডাউন সহ) ---
 with tab2:
     available_seats = [s for s in seat_list if s not in booked_seats_for_date]
     
     if not available_seats:
         st.error(f"🚨 দুঃখিত, {selected_bus}-এর এই তারিখের সব ৪০টি সিটই বুকড হয়ে গেছে।")
     else:
-        with st.form("interactive_booking_form"):
-            default_index = 0
-            if st.session_state.selected_seat in available_seats:
-                default_index = available_seats.index(st.session_state.selected_seat)
-                
-            s_seat = st.selectbox("💺 নির্বাচিত সিট নম্বর:", available_seats, index=default_index)
-            name = st.text_input("👤 যাত্রীর নাম:")
-            phone = st.text_input("📞 যাত্রীর মোবাইল নম্বর:")
-            counter_name = st.text_input("🏢 কাউন্টার নাম:")
+        st.subheader("বুকিং বিবরণ")
+        
+        with st.form("interactive_booking_form", clear_on_submit=True):
+            seats = st.multiselect(
+                "📲 সিট নির্বাচন করুন (এক বা একাধিক সিট বাছতে পারবেন):", 
+                options=available_seats, 
+                default=st.session_state.selected_seats
+            )
+            name = st.text_input("👤 যাত্রীর নাম:").strip()
+            phone = st.text_input("📞 যাত্রীর মোবাইল নম্বর:").strip()
+            counter_name = st.text_input("🏢 কাউন্টার নাম:").strip()
 
-            submit_btn = st.form_submit_button(f"{selected_bus}-এর সিট কনফার্ম করুন 🔘", use_container_width=True)
+            submit_btn = st.form_submit_button(f"{selected_bus}-এর টিকেট কনফার্ম করুন 🔘", use_container_width=True)
 
             if submit_btn:
-                if name and phone and counter_name:
-                    booking_time = datetime.now(local_tz).strftime("%d-%m-%Y %H:%M:%S")
-                    booking_info = {
-                        "বুকিংয়ের সময়": booking_time,
-                        "বাসের নাম": selected_bus,
-                        "ভ্রমণের তারিখ": formatted_journey_date,
-                        "কাস্টমারের নাম": name,
-                        "সিট নম্বর": s_seat,
-                        "মোবাইল নম্বর": phone,
-                        "কাউন্টার নাম": counter_name
-                    }
-                    save_booking_data(booking_info)
-                    st.session_state.selected_seat = None
+                if not seats:
+                    st.error("⚠️ অনুগ্রহ করে অন্তত একটি সিট নির্বাচন করুন!")
+                elif name and phone and counter_name:
+                    booking_time = get_bd_time().strftime("%d-%m-%Y %I:%M:%S %p")
+                    
+                    booking_records = []
+                    for seat in seats:
+                        booking_records.append({
+                            "বুকিংয়ের সময় (BD Time)": booking_time,
+                            "বাসের নাম": selected_bus,
+                            "ভ্রমণের তারিখ": formatted_journey_date,
+                            "কাস্টমারের নাম": str(name),
+                            "সিট নম্বর": str(seat),
+                            "মোবাইল নম্বর": str(phone),
+                            "কাউন্টার নাম": str(counter_name)
+                        })
+                    
+                    save_booking_data(booking_records)
+                    confirmed_seats = ", ".join(seats)
+                    
+                    st.session_state.selected_seats = []
+                    
                     st.balloons()
-                    st.success(f"🎉 বুকিং সফল হয়েছে! ({selected_bus} - সিট: {s_seat})")
-                    time.sleep(1)
+                    st.success(f"🎉 বুকিং সফল হয়েছে! ({selected_bus} - সিট: {confirmed_seats})")
+                    time.sleep(1.2)
                     st.rerun()
                 else:
                     st.error("⚠️ অনুগ্রহ করে যাত্রীর নাম, মোবাইল নম্বর এবং কাউন্টার নাম সঠিকভাবে লিখুন।")
 
-# ৬. অ্যাডমিন কন্ট্রোল
+# ৬. অ্যাডমিন কন্ট্রোল ও পারফেক্ট এক্সেল রিপোর্ট জেনারেটর
 st.markdown("<br><hr>", unsafe_allow_html=True)
-with st.expander("🔐 অ্যাডমিন পোর্টাল"):
+with st.expander("🔐 অ্যাডমিন পোর্টাল (কন্ট্রোল ও এডিট)"):
     if not st.session_state.admin_logged_in:
         admin_pass = st.text_input("পাসওয়ার্ড দিন:", type="password")
         if st.button("লগইন 🔓"):
@@ -225,37 +250,94 @@ with st.expander("🔐 অ্যাডমিন পোর্টাল"):
             st.rerun()
         
         if os.path.isfile(RECORD_FILE):
-            df_show = pd.read_csv(RECORD_FILE, on_bad_lines='skip')
-            st.dataframe(df_show, use_container_width=True)
+            df_show = pd.read_csv(RECORD_FILE, dtype=str, on_bad_lines='skip')
             
-            st.markdown("### 🔄 ট্রিপ কন্ট্রোল প্যানেল")
-            if st.button("⚠️ সকল বুকিং মুছুন ও নতুন ট্রিপ শুরু করুন", type="primary", use_container_width=True):
+            st.markdown("### 🔄 ট্রিপ কন্ট্রোল ও এডিট প্যানেল")
+            
+            f_bus = st.selectbox("ফিল্টার করার জন্য বাস বাছুন:", BUS_LIST, key="admin_bus_filter")
+            f_date = st.date_input("তারিখ ফিল্টার করুন:", value=today_dt, format="DD-MM-YYYY", key="admin_date_filter")
+            formatted_f_date = f_date.strftime("%d-%m-%Y")
+            
+            if 'বাসের নাম' in df_show.columns and 'ভ্রমণের তারিখ' in df_show.columns:
+                df_show['ভ্রমণের তারিখ'] = df_show['ভ্রমণের তারিখ'].str.strip()
+                df_show['বাসের নাম'] = df_show['বাসের নাম'].str.strip()
+                
+                df_f = df_show[
+                    (df_show['ভ্রমণের তারিখ'] == formatted_f_date) &
+                    (df_show['বাসের নাম'] == f_bus)
+                ]
+                st.write(f"📊 **{f_bus}** - {formatted_f_date} এর মোট বুকিং: {len(df_f)} টি")
+                
+                for idx, row in df_f.iterrows():
+                    time_col = 'বুকিংয়ের সময় (BD Time)' if 'বুকিংয়ের সময় (BD Time)' in row else 'বুকিংয়ের সময়'
+                    booking_time_str = row.get(time_col, '')
+                    
+                    with st.expander(f"💺 সিট: {row['সিট নম্বর']} | কাস্টমার: {row['কাস্টমারের নাম']}"):
+                        st.caption(f"⏰ বুকিংয়ের সময় (BD Time): {booking_time_str}")
+                        with st.form(key=f"edit_form_{idx}"):
+                            new_name = st.text_input("নাম:", value=str(row['কাস্টমারের নাম']))
+                            new_phone = st.text_input("ফোন:", value=str(row['মোবাইল নম্বর']))
+                            new_counter = st.text_input("কাউন্টার:", value=str(row['কাউন্টার নাম']))
+                            
+                            c_save, c_del = st.columns(2)
+                            with c_save:
+                                update_btn = st.form_submit_button("✏️ আপডেট করুন")
+                            with c_del:
+                                delete_btn = st.form_submit_button("❌ ক্যানসেল/ডিলিট")
+
+                            if update_btn:
+                                df_show.at[idx, 'কাস্টমারের নাম'] = str(new_name).strip()
+                                df_show.at[idx, 'মোবাইল নম্বর'] = str(new_phone).strip()
+                                df_show.at[idx, 'কাউন্টার নাম'] = str(new_counter).strip()
+                                overwrite_all_data(df_show)
+                                st.success("তথ্য আপডেট হয়েছে!")
+                                time.sleep(0.8)
+                                st.rerun()
+                                
+                            if delete_btn:
+                                df_show = df_show.drop(idx)
+                                overwrite_all_data(df_show)
+                                st.warning("বুকিংটি ক্যানসেল করা হয়েছে ও সিট খালি করা হয়েছে!")
+                                time.sleep(0.8)
+                                st.rerun()
+
+            st.markdown("---")
+            if st.button("⚠️ সকল ডাটা একসাথে মুছুন (Reset All)", type="primary", use_container_width=True):
                 try:
                     os.remove(RECORD_FILE)
-                    st.success("🔥 সকল বুকিং ডাটা সফলভাবে মুছে ফেলা হয়েছে!")
+                    st.success("🔥 সকল বুকিং ডাটা মুছে ফেলা হয়েছে!")
                     time.sleep(1)
                     st.rerun()
                 except Exception as e:
                     st.error(f"ডাটা মুছতে সমস্যা হয়েছে: {e}")
             
-            st.markdown("---")
-            f_bus = st.selectbox("ফিল্টার করার জন্য বাস বাছুন:", BUS_LIST, key="admin_bus_filter")
-            f_date = st.date_input("তারিখ ফিল্টার করুন:", value=today_dt, format="DD-MM-YYYY", key="admin_date_filter")
-            
-            if 'বাসের নাম' in df_show.columns and 'ভ্রমণের তারিখ' in df_show.columns:
-                df_f = df_show[
-                    (df_show['ভ্রমণের তারিখ'] == f_date.strftime("%d-%m-%Y")) &
-                    (df_show['বাসের নাম'] == f_bus)
-                ]
-                st.write(f"📊 **{f_bus}** - {f_date.strftime('%d-%m-%Y')} এর মোট বুকিং: {len(df_f)} টি")
-                for index, row in df_f.iterrows():
-                    with st.expander(f"সিট {row['সিট নম্বর']} - {row['কাস্টমারের নাম']}"):
-                        st.write(f"📱 ফোন: {row['মোবাইল নম্বর']} | 🏢 কাউন্টার: {row['কাউন্টার নাম']}")
-                        st.write(f"⏰ বুকিং টাইম: {row['বুকিংয়ের সময়']}")
-            
             st.markdown("<br>", unsafe_allow_html=True)
+            
+            # --- প্রফেশনাল এক্সেল ডাউনলোড সিস্টেম ---
+            column_order = [
+                "বুকিংয়ের সময় (BD Time)", 
+                "বাসের নাম", 
+                "ভ্রমণের তারিখ", 
+                "সিট নম্বর", 
+                "কাস্টমারের নাম", 
+                "মোবাইল নম্বর", 
+                "কাউন্টার নাম"
+            ]
+            
+            existing_cols = [col for col in column_order if col in df_show.columns]
+            df_download = df_show[existing_cols]
+
+            # UTF-8-SIG এনকোডিং নিশ্চিত করে যেন এক্সেলে বাংলা ফন্ট এবং ফোন নম্বরের '0' ঠিক থাকে
+            csv_data = df_download.to_csv(index=False, encoding='utf-8-sig')
+
             c_down, c_link = st.columns(2)
             with c_down: 
-                st.download_button("📁 Excel রিপোর্ট", df_show.to_csv(index=False).encode('utf-8-sig'), "bus_report.csv")
+                st.download_button(
+                    label="📊 এক্সেল (CSV) রিপোর্ট ডাউনলোড", 
+                    data=csv_data, 
+                    file_name=f"Abida_Tourist_Report_{formatted_journey_date}.csv", 
+                    mime="text/csv",
+                    use_container_width=True
+                )
             with c_link: 
-                         st.link_button("🌐 Google Sheet খুলুন", GOOGLE_SHEET_URL)
+                st.link_button("🌐 Google Sheet খুলুন", GOOGLE_SHEET_URL, use_container_width=True)
