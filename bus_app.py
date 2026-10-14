@@ -98,9 +98,9 @@ st.markdown("""
 st.markdown("<h1 class='main-title'>🚌 আবিদা ট্যুরিস্ট এসি বাস</h1>", unsafe_allow_html=True)
 st.markdown("<p class='sub-title'>📞 হটলাইন নম্বর: 01717840502 / 01923840502</p>", unsafe_allow_html=True)
 
-# ৫. ৪০টি সিটের তালিকা তৈরি
-rows = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
-seat_list = [f"{r}{num}" for r in rows for num in range(1, 5)]
+# ৫. ৩৭টি সিটের তালিকা তৈরি (A-H পর্যন্ত ৪টি করে সিট, I সারিতে ৫টি সিট)
+rows_normal = ["A", "B", "C", "D", "E", "F", "G", "H"]
+seat_list = [f"{r}{num}" for r in rows_normal for num in range(1, 5)] + [f"I{num}" for num in range(1, 6)]
 
 # সেশন স্টেট সেটআপ
 if 'selected_seats' not in st.session_state:
@@ -122,7 +122,7 @@ with col_date:
 
 formatted_journey_date = selected_date.strftime("%d-%m-%Y")
 
-# বুকড সিট ফিল্টার (সুরক্ষিত ও স্ট্রিপড ডাটা)
+# বুকড সিট ফিল্টার
 booked_seats_for_date = []
 if os.path.isfile(RECORD_FILE):
     try:
@@ -139,14 +139,13 @@ if os.path.isfile(RECORD_FILE):
     except Exception:
         booked_seats_for_date = []
 
-# নিশ্চিত করা যেন কোনো বুকড সিট selected_seats সেশন স্টেটে আটকে না থাকে
 st.session_state.selected_seats = [
     s for s in st.session_state.selected_seats if s not in booked_seats_for_date
 ]
 
-tab1, tab2 = st.tabs(["💺 ৪০-সিট ম্যাপ ভিউ", "📝 বুকিং ফরম"])
+tab1, tab2 = st.tabs(["💺 ৩৭-সিট ম্যাপ ভিউ", "📝 বুকিং ফরম"])
 
-# --- 💺 ট্যাব ১: সিট ম্যাপ ---
+# --- 💺 ট্যাব ১: সিট ম্যাপ (মাঝখানে হাঁটার রাস্তা সহ) ---
 with tab1:
     st.markdown(f"<p style='text-align:center; font-weight:bold; color:#1e3c72;'>{selected_bus} ({formatted_journey_date})</p>", unsafe_allow_html=True)
     st.markdown("<p style='text-align:center; color:#777; font-size:11px; margin-bottom:10px;'>খালি সিট সবুজ 🟢, সিলেক্টেড নীল 🔵 এবং বুকড লাল 🔴</p>", unsafe_allow_html=True)
@@ -163,30 +162,42 @@ with tab1:
                 st.session_state.selected_seats.append(seat_id)
                 st.rerun()
 
-    c1, c2, c3, c4 = st.columns([1, 1, 1, 1], gap="small")
+    # ড্রাইভার ও গেইট বিন্যাস (মাঝখানে ফাঁকা রাস্তা রেখে)
+    c1, c2, c_gap, c3, c4 = st.columns([1, 1, 0.8, 1, 1], gap="small")
     with c1: st.button("🚪 GATE", key="GAT_m", disabled=True, use_container_width=True)
     with c2: st.write("")
+    with c_gap: st.write("") # মাঝখানের হাঁটার রাস্তা
     with c3: st.write("")
     with c4: st.button("👨‍✈️ DRIVER", key="DR_m", disabled=True, use_container_width=True)
     
     st.markdown("<hr style='margin:5px 0;'>", unsafe_allow_html=True)
 
-    for r in rows:
-        c1, c2, c3, c4 = st.columns([1, 1, 1, 1], gap="small")
+    # A থেকে H সারি (বাম পাশে ২টি, মাঝখানে হাঁটার রাস্তা, ডান পাশে ২টি সিট)
+    for r in rows_normal:
+        c1, c2, c_gap, c3, c4 = st.columns([1, 1, 0.8, 1, 1], gap="small")
         with c1: render_seat_clickable(f"{r}1")
         with c2: render_seat_clickable(f"{r}2")
+        with c_gap: st.markdown("<p style='text-align:center; color:#ccc; font-size:10px; margin:auto;'>|</p>", unsafe_allow_html=True) # হাঁটার রাস্তার জন্য খালি জায়গা বা দাগ
         with c3: render_seat_clickable(f"{r}3")
         with c4: render_seat_clickable(f"{r}4")
+
+    st.markdown("<hr style='margin:5px 0; border-style:dashed;'>", unsafe_allow_html=True)
+    
+    # I সারি (পেছনের সারিতে ৫টি সিট একসাথে)
+    i_cols = st.columns(5, gap="small")
+    for idx, num in enumerate(range(1, 6)):
+        with i_cols[idx]:
+            render_seat_clickable(f"I{num}")
 
     if st.session_state.selected_seats:
         st.info(f"🎯 আপনার পছন্দকৃত সিট: **{', '.join(st.session_state.selected_seats)}**")
 
-# --- 📝 ট্যাব ২: মূল বুকিং ফরম (মাল্টি-সিলেক্ট ড্রপডাউন সহ) ---
+# --- 📝 ট্যাব ২: মূল বুকিং ফরম ---
 with tab2:
     available_seats = [s for s in seat_list if s not in booked_seats_for_date]
     
     if not available_seats:
-        st.error(f"🚨 দুঃখিত, {selected_bus}-এর এই তারিখের সব ৪০টি সিটই বুকড হয়ে গেছে।")
+        st.error(f"🚨 দুঃখিত, {selected_bus}-এর এই তারিখের সব ৩৭টি সিটই বুকড হয়ে গেছে।")
     else:
         st.subheader("বুকিং বিবরণ")
         
@@ -232,7 +243,7 @@ with tab2:
                 else:
                     st.error("⚠️ অনুগ্রহ করে যাত্রীর নাম, মোবাইল নম্বর এবং কাউন্টার নাম সঠিকভাবে লিখুন।")
 
-# ৬. অ্যাডমিন কন্ট্রোল ও পারফেক্ট এক্সেল রিপোর্ট জেনারেটর
+# ৬. অ্যাডমিন কন্ট্রোল ও রিপোর্ট জেনারেটর
 st.markdown("<br><hr>", unsafe_allow_html=True)
 with st.expander("🔐 অ্যাডমিন পোর্টাল (কন্ট্রোল ও এডিট)"):
     if not st.session_state.admin_logged_in:
@@ -313,7 +324,6 @@ with st.expander("🔐 অ্যাডমিন পোর্টাল (কন্
             
             st.markdown("<br>", unsafe_allow_html=True)
             
-            # --- প্রফেশনাল এক্সেল ডাউনলোড সিস্টেম ---
             column_order = [
                 "বুকিংয়ের সময় (BD Time)", 
                 "বাসের নাম", 
@@ -327,7 +337,6 @@ with st.expander("🔐 অ্যাডমিন পোর্টাল (কন্
             existing_cols = [col for col in column_order if col in df_show.columns]
             df_download = df_show[existing_cols]
 
-            # UTF-8-SIG এনকোডিং নিশ্চিত করে যেন এক্সেলে বাংলা ফন্ট এবং ফোন নম্বরের '0' ঠিক থাকে
             csv_data = df_download.to_csv(index=False, encoding='utf-8-sig')
 
             c_down, c_link = st.columns(2)
