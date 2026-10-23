@@ -4,9 +4,11 @@ from datetime import datetime, timedelta
 import pytz
 import os
 import time
+import shutil
 
 # ১. কনফিগারেশন
 RECORD_FILE = "daily_customer_list.csv"
+BACKUP_FILE = "daily_customer_list_backup.csv"
 ADMIN_PASSWORD = "sohel502" 
 GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/11LAiSvWu3I_bKRGUg26uBIuGlob4cdRB6SOs7no3QiM/edit?gid=0#gid=0"
 
@@ -21,18 +23,32 @@ def get_bd_time():
 
 today_dt = get_bd_time().date()
 
-# ৩. ডাটা সেভ ও আপডেট করার ফাংশন
+# ৩. ডাটা সেভ, আপডেট ও ব্যাকআপ ফাংশন
+def create_backup():
+    """ডাটা মুছে ফেলা বা পরিবর্তনের আগে ব্যাকআপ ফাইল তৈরি করার ফাংশন"""
+    if os.path.isfile(RECORD_FILE):
+        shutil.copy(RECORD_FILE, BACKUP_FILE)
+
 def save_booking_data(data_list):
     df = pd.DataFrame(data_list)
     if not os.path.isfile(RECORD_FILE):
         df.to_csv(RECORD_FILE, index=False, encoding='utf-8-sig')
     else:
         df.to_csv(RECORD_FILE, mode='a', index=False, header=False, encoding='utf-8-sig')
+    create_backup()
 
 def overwrite_all_data(df):
+    create_backup()
     df.to_csv(RECORD_FILE, index=False, encoding='utf-8-sig')
 
-# ৪. পেজ সেটআপ ও অ্যাডভান্সড সিএসএস
+def restore_backup():
+    """মুছে যাওয়া ব্যাকআপ ফাইল পুনরুদ্ধার করার ফাংশন"""
+    if os.path.isfile(BACKUP_FILE):
+        shutil.copy(BACKUP_FILE, RECORD_FILE)
+        return True
+    return False
+
+# ৪. পেজ সেটআপ ও সবুজ বাটন নিশ্চিত করার সিএসএস
 st.set_page_config(page_title="Abida Tourist", layout="centered", page_icon="🚌")
 
 st.markdown("""
@@ -46,7 +62,7 @@ st.markdown("""
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
-        gap: 4px !important;
+        gap: 6px !important;
     }
     [data-testid="stHorizontalBlock"] > div {
         flex: 1 1 0% !important;
@@ -57,6 +73,24 @@ st.markdown("""
         padding: 4px 2px !important;
         font-size: 11px !important;
         height: 38px !important;
+    }
+
+    /* 🟢 সবুজ ব্যাকগ্রাউন্ড বাটন (ডিলিট হওয়া ডাটা রিকভার করুন) */
+    div.stButton > button[key="btn_restore_1"], 
+    div.stButton > button[key="btn_restore_2"] {
+        background-color: #2e7d32 !important;
+        background: #2e7d32 !important;
+        color: #ffffff !important;
+        border: 1px solid #1b5e20 !important;
+        font-weight: bold !important;
+        border-radius: 8px !important;
+    }
+    div.stButton > button[key="btn_restore_1"] p, 
+    div.stButton > button[key="btn_restore_2"] p,
+    div.stButton > button[key="btn_restore_1"] span, 
+    div.stButton > button[key="btn_restore_2"] span {
+        color: #ffffff !important;
+        font-weight: bold !important;
     }
 
     div.stButton > button[key^="avail_"] {
@@ -87,7 +121,7 @@ st.markdown("""
         color: #455a64 !important;
         border: 1px dashed #90a4ae !important;
     }
-    
+
     .stTabs [data-baseweb="tab-list"] { gap: 10px; justify-content: center; }
     .stTabs [aria-selected="true"] { background-color: #1e3c72 !important; color: white !important; }
     div[data-testid="stForm"] { background: white; padding: 15px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
@@ -145,7 +179,7 @@ st.session_state.selected_seats = [
 
 tab1, tab2 = st.tabs(["💺 ৩৭-সিট ম্যাপ ভিউ", "📝 বুকিং ফরম"])
 
-# --- 💺 ট্যাব ১: সিট ম্যাপ (মাঝখানে হাঁটার রাস্তা সহ) ---
+# --- 💺 ট্যাব ১: সিট ম্যাপ ---
 with tab1:
     st.markdown(f"<p style='text-align:center; font-weight:bold; color:#1e3c72;'>{selected_bus} ({formatted_journey_date})</p>", unsafe_allow_html=True)
     st.markdown("<p style='text-align:center; color:#777; font-size:11px; margin-bottom:10px;'>খালি সিট সবুজ 🟢, সিলেক্টেড নীল 🔵 এবং বুকড লাল 🔴</p>", unsafe_allow_html=True)
@@ -162,28 +196,25 @@ with tab1:
                 st.session_state.selected_seats.append(seat_id)
                 st.rerun()
 
-    # ড্রাইভার ও গেইট বিন্যাস (মাঝখানে ফাঁকা রাস্তা রেখে)
     c1, c2, c_gap, c3, c4 = st.columns([1, 1, 0.8, 1, 1], gap="small")
     with c1: st.button("🚪 GATE", key="GAT_m", disabled=True, use_container_width=True)
     with c2: st.write("")
-    with c_gap: st.write("") # মাঝখানের হাঁটার রাস্তা
+    with c_gap: st.write("")
     with c3: st.write("")
     with c4: st.button("👨‍✈️ DRIVER", key="DR_m", disabled=True, use_container_width=True)
     
     st.markdown("<hr style='margin:5px 0;'>", unsafe_allow_html=True)
 
-    # A থেকে H সারি (বাম পাশে ২টি, মাঝখানে হাঁটার রাস্তা, ডান পাশে ২টি সিট)
     for r in rows_normal:
         c1, c2, c_gap, c3, c4 = st.columns([1, 1, 0.8, 1, 1], gap="small")
         with c1: render_seat_clickable(f"{r}1")
         with c2: render_seat_clickable(f"{r}2")
-        with c_gap: st.markdown("<p style='text-align:center; color:#ccc; font-size:10px; margin:auto;'>|</p>", unsafe_allow_html=True) # হাঁটার রাস্তার জন্য খালি জায়গা বা দাগ
+        with c_gap: st.markdown("<p style='text-align:center; color:#ccc; font-size:10px; margin:auto;'>|</p>", unsafe_allow_html=True)
         with c3: render_seat_clickable(f"{r}3")
         with c4: render_seat_clickable(f"{r}4")
 
     st.markdown("<hr style='margin:5px 0; border-style:dashed;'>", unsafe_allow_html=True)
     
-    # I সারি (পেছনের সারিতে ৫টি সিট একসাথে)
     i_cols = st.columns(5, gap="small")
     for idx, num in enumerate(range(1, 6)):
         with i_cols[idx]:
@@ -313,15 +344,31 @@ with st.expander("🔐 অ্যাডমিন পোর্টাল (কন্
                                 st.rerun()
 
             st.markdown("---")
-            if st.button("⚠️ সকল ডাটা একসাথে মুছুন (Reset All)", type="primary", use_container_width=True):
-                try:
-                    os.remove(RECORD_FILE)
-                    st.success("🔥 সকল বুকিং ডাটা মুছে ফেলা হয়েছে!")
-                    time.sleep(1)
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"ডাটা মুছতে সমস্যা হয়েছে: {e}")
             
+            # 🔴 লাল ও 🟢 সবুজ বাটন পাশাপাশি স্থাপন
+            c_reset, c_restore = st.columns(2)
+            with c_reset:
+                # type="primary" ব্যবহার করে লাল করা হয়েছে
+                if st.button("⚠️ সকল ডাটা মুছুন (Reset All)", type="primary", use_container_width=True):
+                    try:
+                        create_backup()
+                        os.remove(RECORD_FILE)
+                        st.success("🔥 সকল ডাটা মুছে ফেলা হয়েছে! (ব্যাকআপ সংরক্ষিত আছে)")
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"ডাটা মুছতে সমস্যা হয়েছে: {e}")
+                        
+            with c_restore:
+                # সিএসএস এর মাধ্যমে সবুজ ব্যাকগ্রাউন্ড নিশ্চিত করা হয়েছে
+                if st.button("↺ ডিলিট হওয়া ডাটা রিকভার করুন (Undo Reset)", key="btn_restore_1", use_container_width=True):
+                    if restore_backup():
+                        st.success("🎉 মুছে যাওয়া বুকিং ডাটা সফলভাবে পুনরুদ্ধার করা হয়েছে!")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error("⚠️ কোনো ব্যাকআপ ফাইল পাওয়া যায়নি!")
+
             st.markdown("<br>", unsafe_allow_html=True)
             
             column_order = [
@@ -350,3 +397,11 @@ with st.expander("🔐 অ্যাডমিন পোর্টাল (কন্
                 )
             with c_link: 
                 st.link_button("🌐 Google Sheet খুলুন", GOOGLE_SHEET_URL, use_container_width=True)
+        else:
+            st.info("বর্তমানে কোনো বুকিং ডাটা নেই।")
+            if os.path.isfile(BACKUP_FILE):
+                if st.button("↺ মুছে যাওয়া ব্যাকআপ ডাটা রিকভার করুন", key="btn_restore_2", use_container_width=True):
+                    if restore_backup():
+                        st.success("🎉 ডাটা সফলভাবে রিকভার হয়েছে!")
+                        time.sleep(1)
+                        st.rerun()
